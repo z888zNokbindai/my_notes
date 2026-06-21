@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Notebook Archive</title>
+    <style>
+        /* --- CSS Variables สำหรับ Light/Night Mode --- */
+        :root {
+            --bg-color: #f5f5f3;
+            --text-color: #1a1a1a;
+            --text-secondary: #666;
+            --text-meta: #777;
+            --paper-bg: #ffffff;
+            --paper-border: #dcdcdc;
+            --search-bg: #ffffff;
+            --line-color: rgba(0, 0, 0, 0.04);
+            --margin-line: #ffb3b3;
+            --title-border: #1a1a1a;
+            --shadow-color: rgba(0, 0, 0, 0.04);
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --text-secondary: #aaaaaa;
+            --text-meta: #888888;
+            --paper-bg: #1e1e1e;
+            --paper-border: #2c2c2c;
+            --search-bg: #252525;
+            --line-color: rgba(255, 255, 255, 0.05);
+            --margin-line: #552222;
+            --title-border: #e0e0e0;
+            --shadow-color: rgba(0, 0, 0, 0.2);
+        }
+
+        /* --- Base Setup --- */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 750px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* --- Theme Toggle Button --- */
+        .theme-toggle-btn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: transparent;
+            border: 2px solid var(--text-color);
+            color: var(--text-color);
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .theme-toggle-btn:hover {
+            background-color: var(--text-color);
+            color: var(--paper-bg);
+        }
+
+        /* --- Header Section --- */
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-top: 20px;
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            margin: 0;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+        }
+
+        /* --- Search Bar --- */
+        .search-box {
+            margin-bottom: 35px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 14px 20px;
+            font-size: 1rem;
+            border: 2px solid var(--text-color);
+            border-radius: 6px;
+            background-color: var(--search-bg);
+            color: var(--text-color);
+            outline: none;
+            box-shadow: 3px 3px 0px var(--text-color);
+        }
+
+        /* --- Lined Notebook Paper Layout --- */
+        .archive-list {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .archive-item {
+            background-color: var(--paper-bg);
+            position: relative;
+            padding: 30px 40px 30px 65px;
+            border: 1px solid var(--paper-border);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px var(--shadow-color);
+            
+            background-image: 
+                linear-gradient(var(--line-color) 1px, transparent 1px), 
+                linear-gradient(90deg, transparent 50px, var(--margin-line) 1px, var(--margin-line) 2px, transparent 52px);
+            background-size: 100% 32px, 100% 100%;
+            background-position: 0 15px, 0 0;
+        }
+
+        .item-meta {
+            font-size: 0.8rem;
+            color: var(--text-meta);
+            margin-bottom: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .item-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin: 0 0 16px 0;
+            border-bottom: 1px dashed var(--title-border);
+            padding-bottom: 8px;
+        }
+
+        .item-content {
+            font-size: 0.98rem;
+            color: var(--text-color);
+            margin: 0;
+            text-align: justify;
+            white-space: pre-wrap; /* รักษาการย่อหน้าหรือขึ้นบรรทัดใหม่จากไฟล์ .txt */
+        }
+
+        /* --- Status Messages --- */
+        .status-msg {
+            text-align: center;
+            color: var(--text-meta);
+            padding: 40px 0;
+            font-style: italic;
+        }
+        #noResults, #loadingMsg { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <button id="themeToggle" class="theme-toggle-btn">Night Mode</button>
+
+        <header>
+            <h1>THE NOTEBOOK ARCHIVE</h1>
+            <p class="subtitle">ระบบคลังข้อมูลบันทึกส่วนตัว</p>
+        </header>
+
+        <div class="search-box">
+            <input 
+                type="text" 
+                id="searchInput" 
+                class="search-input" 
+                placeholder="🔍 พิมพ์เพื่อค้นหาบันทึก..."
+                autocomplete="off"
+            >
+        </div>
+
+        <main class="archive-list" id="archiveList">
+            <div id="loadingMsg" class="status-msg" style="display: block;">กำลังเปิดสมุดบันทึก...</div>
+            <div id="noResults" class="status-msg">❌ ไม่พบหน้าบันทึกที่ตรงกับคำค้นหา</div>
+            </main>
+    </div>
+
+    <script>
+        const archiveList = document.getElementById('archiveList');
+        const loadingMsg = document.getElementById('loadingMsg');
+        const noResults = document.getElementById('noResults');
+
+        // --- 1. โหลดข้อมูลโน้ตจากโฟลเดอร์ notes/ ---
+        async function loadNotes() {
+            try {
+                // ดึงรายชื่อไฟล์จาก list.json
+                const response = await fetch('notes/list.json');
+                const fileNames = await response.json();
+
+                for (const fileName of fileNames) {
+                    try {
+                        // ดึงเนื้อหาภายในแต่ละไฟล์ .txt
+                        const resFile = await fetch(`notes/${fileName}`);
+                        const fullText = await resFile.text();
+
+                        // แยกบรรทัดแรกออกเป็น "หัวข้อ" ส่วนที่เหลือเป็น "เนื้อหา"
+                        const lines = fullText.split('\n');
+                        const title = lines[0].trim();
+                        const content = lines.slice(1).join('\n').trim();
+
+                        // สร้างการ์ดสมุดโน้ตเพิ่มเข้าไปในหน้าเว็บ
+                        createNoteElement(fileName, title, content);
+                    } catch (err) {
+                        console.error(`ไม่สามารถโหลดไฟล์ ${fileName} ได้:`, err);
+                    }
+                }
+            } catch (err) {
+                loadingMsg.textContent = "⚠️ ไม่สามารถโหลดรายการบันทึกได้ (ตรวจสอบ notes/list.json)";
+                console.error(err);
+            } finally {
+                loadingMsg.style.display = 'none';
+            }
+        }
+
+        function createNoteElement(fileName, title, content) {
+            const article = document.createElement('article');
+            article.className = 'archive-item';
+            
+            // ใช้ชื่อไฟล์หรือแปลงชื่อไฟล์เป็น Meta ด้านบน
+            const displayTag = fileName.replace('.txt', '').toUpperCase();
+
+            article.innerHTML = `
+                <div class="item-meta">📄 ${displayTag}</div>
+                <h2 class="item-title">${title}</h2>
+                <p class="item-content">${content}</p>
+            `;
+            archiveList.appendChild(article);
+        }
+
+        // เริ่มทำงานเมื่อเปิดหน้าเว็บ
+        loadNotes();
+
+        // --- 2. ระบบค้นหาด่วน (Instant Search) ---
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase().trim();
+            const items = document.querySelectorAll('.archive-item');
+            let hasVisibleItem = false;
+
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    item.style.display = 'block';
+                    hasVisibleItem = true;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            noResults.style.display = hasVisibleItem || items.length === 0 ? 'none' : 'block';
+        });
+
+        // --- 3. ระบบสลับโหมด Light / Night ---
+        const themeToggleBtn = document.getElementById('themeToggle');
+        
+        themeToggleBtn.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            
+            if (currentTheme === 'dark') {
+                document.documentElement.removeAttribute('data-theme');
+                themeToggleBtn.textContent = 'Night Mode';
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeToggleBtn.textContent = 'Light Mode';
+            }
+        });
+    </script>
+</body>
+</html>
