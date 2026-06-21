@@ -191,7 +191,7 @@
         </div>
 
         <main class="archive-list" id="archiveList">
-            <div id="loadingMsg" class="status-msg" style="display: block;">กำลังสแกนหาไฟล์โน้ต...</div>
+            <div id="loadingMsg" class="status-msg" style="display: block;">กำลังดึงข้อมูลโน้ตจาก GitHub API...</div>
             <div id="noResults" class="status-msg">❌ ไม่พบหน้าบันทึกที่ตรงกับคำค้นหา</div>
         </main>
     </div>
@@ -201,56 +201,52 @@
         const loadingMsg = document.getElementById('loadingMsg');
         const noResults = document.getElementById('noResults');
 
-        // --- 1. สแกนหาไฟล์ .txt จากโฟลเดอร์โดยตรง (Scraping GitHub Pages Directory) ---
-        async function autoLoadNotes() {
-            try {
-                // Fetch หน้าโฟลเดอร์ notes/
-                const response = await fetch('notes/');
-                const htmlText = await response.text();
-                
-                // ใช้ DOMParser แกะเอาลิงก์ทั้งหมดที่อยู่ในหน้านั้นมา
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlText, 'text/html');
-                const links = doc.querySelectorAll('a');
-                
-                let fileNames = [];
-                links.forEach(link => {
-                    const href = link.getAttribute('href');
-                    // กรองเอาเฉพาะไฟล์ที่ลงท้ายด้วย .txt
-                    if (href && href.endsWith('.txt')) {
-                        // ปรับชื่อไฟล์ให้ถูกต้อง (ลบ path ส่วนเกินถ้ามี)
-                        const cleanName = href.split('/').pop();
-                        if (!fileNames.includes(cleanName)) {
-                            fileNames.push(cleanName);
-                        }
-                    }
-                });
+        // --- ⚙️ ส่วนตั้งค่าต้อนรับผู้ใช้งาน (แก้ไขตรงนี้) ⚙️ ---
+        const GITHUB_USERNAME = "z888zNokbindai"; 
+        const GITHUB_REPO = "my_notes"; // เปลี่ยนเป็นชื่อ Repository ของคุณ เช่น "my-notebook"
 
-                if (fileNames.length === 0) {
-                    loadingMsg.textContent = "📭 ไม่พบไฟล์ .txt ในโฟลเดอร์ notes";
+        // --- 1. โหลดโน้ตอัตโนมัติผ่าน GitHub API ---
+        async function loadNotesFromAPI() {
+            try {
+                // เรียกดูรายการไฟล์ในโฟลเดอร์ notes ผ่าน API ของ GitHub
+                const response = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/notes`);
+                
+                if (!response.ok) {
+                    throw new Error("ไม่สามารถเข้าถึง Repository ได้ กรุณาเช็คชื่อ Repo อีกครั้ง");
+                }
+
+                const files = await response.json();
+                
+                // กรองคัดเอาเฉพาะไฟล์ .txt
+                const txtFiles = files.filter(file => file.name.endsWith('.txt'));
+
+                if (txtFiles.length === 0) {
+                    loadingMsg.textContent = "📭 ไม่พบไฟล์ .txt ใดๆ ในโฟลเดอร์ notes";
                     return;
                 }
 
-                // วนลูปอ่านเนื้อหาแต่ละไฟล์
-                for (const fileName of fileNames) {
+                // วนลูปดาวน์โหลดเนื้อหาของแต่ละไฟล์มาแสดงผล
+                for (const file of txtFiles) {
                     try {
-                        const resFile = await fetch(`notes/${fileName}`);
+                        const resFile = await fetch(file.download_url);
                         const fullText = await resFile.text();
 
                         const lines = fullText.split('\n');
                         const title = lines[0].trim();
                         const content = lines.slice(1).join('\n').trim();
 
-                        createNoteElement(fileName, title, content);
+                        createNoteElement(file.name, title, content);
                     } catch (err) {
-                        console.error(`โหลดไฟล์ ${fileName} ไม่สำเร็จ:`, err);
+                        console.error(`โหลดไฟล์ ${file.name} ล้มเหลว:`, err);
                     }
                 }
             } catch (err) {
-                loadingMsg.textContent = "⚠️ เกิดข้อผิดพลาดในการสแกนโฟลเดอร์ notes";
+                loadingMsg.textContent = `⚠️ เกิดข้อผิดพลาด: ${err.message}`;
                 console.error(err);
             } finally {
-                loadingMsg.style.display = 'none';
+                // ซ่อนข้อความกำลังโหลดเมื่อเสร็จสิ้นกระบวนการ
+                const initialLoading = document.getElementById('loadingMsg');
+                if (initialLoading) initialLoading.style.display = 'none';
             }
         }
 
@@ -258,7 +254,7 @@
             const article = document.createElement('article');
             article.className = 'archive-item';
             
-            // ถอดรหัสชื่อไฟล์รองรับภาษาไทย
+            // ถอดรหัสชื่อไฟล์เพื่อให้รองรับภาษาไทยสวยงาม
             const displayTag = decodeURIComponent(fileName).replace('.txt', '').toUpperCase();
 
             article.innerHTML = `
@@ -269,10 +265,10 @@
             archiveList.appendChild(article);
         }
 
-        // รันฟังก์ชันสแกนอัตโนมัติ
-        autoLoadNotes();
+        // เริ่มรันระบบดึงข้อมูลทันทีเมื่อโหลดหน้าเว็บ
+        loadNotesFromAPI();
 
-        // --- 2. ระบบค้นหาด่วน ---
+        // --- 2. ระบบค้นหาด่วน (Instant Search) ---
         document.getElementById('searchInput').addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase().trim();
             const items = document.querySelectorAll('.archive-item');
