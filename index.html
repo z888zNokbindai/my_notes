@@ -157,7 +157,7 @@
             color: var(--text-color);
             margin: 0;
             text-align: justify;
-            white-space: pre-wrap; /* รักษาการย่อหน้าหรือขึ้นบรรทัดใหม่จากไฟล์ .txt */
+            white-space: pre-wrap;
         }
 
         /* --- Status Messages --- */
@@ -191,9 +191,9 @@
         </div>
 
         <main class="archive-list" id="archiveList">
-            <div id="loadingMsg" class="status-msg" style="display: block;">กำลังเปิดสมุดบันทึก...</div>
+            <div id="loadingMsg" class="status-msg" style="display: block;">กำลังสแกนหาไฟล์โน้ต...</div>
             <div id="noResults" class="status-msg">❌ ไม่พบหน้าบันทึกที่ตรงกับคำค้นหา</div>
-            </main>
+        </main>
     </div>
 
     <script>
@@ -201,32 +201,53 @@
         const loadingMsg = document.getElementById('loadingMsg');
         const noResults = document.getElementById('noResults');
 
-        // --- 1. โหลดข้อมูลโน้ตจากโฟลเดอร์ notes/ ---
-        async function loadNotes() {
+        // --- 1. สแกนหาไฟล์ .txt จากโฟลเดอร์โดยตรง (Scraping GitHub Pages Directory) ---
+        async function autoLoadNotes() {
             try {
-                // ดึงรายชื่อไฟล์จาก list.json
-                const response = await fetch('notes/list.json');
-                const fileNames = await response.json();
+                // Fetch หน้าโฟลเดอร์ notes/
+                const response = await fetch('notes/');
+                const htmlText = await response.text();
+                
+                // ใช้ DOMParser แกะเอาลิงก์ทั้งหมดที่อยู่ในหน้านั้นมา
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                const links = doc.querySelectorAll('a');
+                
+                let fileNames = [];
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    // กรองเอาเฉพาะไฟล์ที่ลงท้ายด้วย .txt
+                    if (href && href.endsWith('.txt')) {
+                        // ปรับชื่อไฟล์ให้ถูกต้อง (ลบ path ส่วนเกินถ้ามี)
+                        const cleanName = href.split('/').pop();
+                        if (!fileNames.includes(cleanName)) {
+                            fileNames.push(cleanName);
+                        }
+                    }
+                });
 
+                if (fileNames.length === 0) {
+                    loadingMsg.textContent = "📭 ไม่พบไฟล์ .txt ในโฟลเดอร์ notes";
+                    return;
+                }
+
+                // วนลูปอ่านเนื้อหาแต่ละไฟล์
                 for (const fileName of fileNames) {
                     try {
-                        // ดึงเนื้อหาภายในแต่ละไฟล์ .txt
                         const resFile = await fetch(`notes/${fileName}`);
                         const fullText = await resFile.text();
 
-                        // แยกบรรทัดแรกออกเป็น "หัวข้อ" ส่วนที่เหลือเป็น "เนื้อหา"
                         const lines = fullText.split('\n');
                         const title = lines[0].trim();
                         const content = lines.slice(1).join('\n').trim();
 
-                        // สร้างการ์ดสมุดโน้ตเพิ่มเข้าไปในหน้าเว็บ
                         createNoteElement(fileName, title, content);
                     } catch (err) {
-                        console.error(`ไม่สามารถโหลดไฟล์ ${fileName} ได้:`, err);
+                        console.error(`โหลดไฟล์ ${fileName} ไม่สำเร็จ:`, err);
                     }
                 }
             } catch (err) {
-                loadingMsg.textContent = "⚠️ ไม่สามารถโหลดรายการบันทึกได้ (ตรวจสอบ notes/list.json)";
+                loadingMsg.textContent = "⚠️ เกิดข้อผิดพลาดในการสแกนโฟลเดอร์ notes";
                 console.error(err);
             } finally {
                 loadingMsg.style.display = 'none';
@@ -237,8 +258,8 @@
             const article = document.createElement('article');
             article.className = 'archive-item';
             
-            // ใช้ชื่อไฟล์หรือแปลงชื่อไฟล์เป็น Meta ด้านบน
-            const displayTag = fileName.replace('.txt', '').toUpperCase();
+            // ถอดรหัสชื่อไฟล์รองรับภาษาไทย
+            const displayTag = decodeURIComponent(fileName).replace('.txt', '').toUpperCase();
 
             article.innerHTML = `
                 <div class="item-meta">📄 ${displayTag}</div>
@@ -248,10 +269,10 @@
             archiveList.appendChild(article);
         }
 
-        // เริ่มทำงานเมื่อเปิดหน้าเว็บ
-        loadNotes();
+        // รันฟังก์ชันสแกนอัตโนมัติ
+        autoLoadNotes();
 
-        // --- 2. ระบบค้นหาด่วน (Instant Search) ---
+        // --- 2. ระบบค้นหาด่วน ---
         document.getElementById('searchInput').addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase().trim();
             const items = document.querySelectorAll('.archive-item');
@@ -272,10 +293,8 @@
 
         // --- 3. ระบบสลับโหมด Light / Night ---
         const themeToggleBtn = document.getElementById('themeToggle');
-        
         themeToggleBtn.addEventListener('click', () => {
             const currentTheme = document.documentElement.getAttribute('data-theme');
-            
             if (currentTheme === 'dark') {
                 document.documentElement.removeAttribute('data-theme');
                 themeToggleBtn.textContent = 'Night Mode';
